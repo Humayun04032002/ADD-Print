@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Project Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        [contenteditable]:focus {
+            outline: 2px solid #3b82f6;
+            outline-offset: -2px;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center p-4">
+    <div id="app-container" class="w-full max-w-4xl mx-auto space-y-8">
+        <!-- Sections will be dynamically inserted here -->
+    </div>
+
+    <button id="add-section" class="fixed bottom-4 right-4 z-50 p-4 bg-green-600 text-white rounded-full shadow-lg hover:bg-green-700 transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+        </svg>
+    </button>
+    
+    <div class="fixed bottom-4 left-4 z-50 flex space-x-2">
+        <button id="save-data" class="p-3 bg-gray-800 text-white rounded-lg shadow-lg hover:bg-gray-900 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-700 focus:ring-opacity-50 text-sm">
+            Save as File
+        </button>
+        <button id="load-data" class="p-3 bg-gray-800 text-white rounded-lg shadow-lg hover:bg-gray-900 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-700 focus:ring-opacity-50 text-sm">
+            Load from File
+        </button>
+        <input type="file" id="file-input" class="hidden" accept=".json">
+    </div>
+
+    <script>
+        // Use a self-invoking function to avoid global variables
+        (function() {
+            // Default data structure
+            const defaultAppData = [
+                {
+                    id: crypto.randomUUID(),
+                    title: "Freelance Projects",
+                    description: "A list of all my design projects for clients.",
+                    columns: ["Date", "Work / Project", "Client / Customer", "Payment Date"],
+                    rows: [
+                        { id: crypto.randomUUID(), "Date": "20-Sep-25", "Work / Project": "Website banner design", "Client / Customer": "Lazeez Restaurant", "Payment Date": "" },
+                        { id: crypto.randomUUID(), "Date": "20-Sep-25", "Work / Project": "Social post graphics", "Client / Customer": "Eggcellence", "Payment Date": "" },
+                        { id: crypto.randomUUID(), "Date": "19-Sep-25", "Work / Project": "App UI update", "Client / Customer": "Workey prototype", "Payment Date": "" },
+                        { id: crypto.randomUUID(), "Date": "18-Sep-25", "Work / Project": "Menu redesign", "Client / Customer": "Lazeez Restaurant", "Payment Date": "" },
+                        { id: crypto.randomUUID(), "Date": "18-Sep-25", "Work / Project": "Product photo shoot", "Client / Customer": "Local Boutique", "Payment Date": "" },
+                        { id: crypto.randomUUID(), "Date": "17-Sep-25", "Work / Project": "Poster printing prep", "Client / Customer": "University Club", "Payment Date": "" },
+                        { id: crypto.randomUUID(), "Date": "16-Sep-25", "Work / Project": "Landing page coding", "Client / Customer": "Freelance Client", "Payment Date": "" },
+                        { id: crypto.randomUUID(), "Date": "15-Sep-25", "Work / Project": "Event ticket design", "Client / Customer": "Music Fest BD", "Payment Date": "" },
+                        { id: crypto.randomUUID(), "Date": "15-Sep-25", "Work / Project": "Logo refresh", "Client / Customer": "Small Café", "Payment Date": "" },
+                        { id: crypto.randomUUID(), "Date": "14-Sep-25", "Work / Project": "Flyer layout", "Client / Customer": "Local NGO", "Payment Date": "" }
+                    ]
+                }
+            ];
+            
+            const appContainer = document.getElementById('app-container');
+            let appData = [];
+
+            // Function to save the current app data to localStorage
+            function saveData() {
+                localStorage.setItem('appData', JSON.stringify(appData));
+            }
+
+            // Function to get the current app data from localStorage
+            function loadData() {
+                const storedData = localStorage.getItem('appData');
+                try {
+                    const parsedData = JSON.parse(storedData);
+                    if (parsedData && parsedData.length > 0) {
+                         // Add IDs to old data if they don't have them
+                         parsedData.forEach(section => {
+                            if (!section.id) section.id = crypto.randomUUID();
+                            section.rows.forEach(row => {
+                                if (!row.id) row.id = crypto.randomUUID();
+                            });
+                         });
+                         appData = parsedData;
+                    } else {
+                        appData = defaultAppData;
+                    }
+                } catch (e) {
+                    console.error("Failed to parse stored data. Using default.", e);
+                    appData = defaultAppData;
+                }
+            }
+            
+            // Function to render a single section from an object
+            function renderSection(sectionData) {
+                const section = document.createElement('div');
+                section.className = 'bg-white rounded-xl shadow-2xl p-6 md:p-10 w-full mx-auto relative';
+                section.setAttribute('data-id', sectionData.id);
+                
+                section.innerHTML = `
+                    <button class="delete-section absolute top-4 right-4 text-gray-400 hover:text-red-500 transition-colors" data-section-id="${sectionData.id}" title="Delete this section">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                    <div class="text-center mb-8">
+                        <h1 class="text-3xl md:text-4xl font-bold text-gray-800 mb-2 editable-title" contenteditable="true">${sectionData.title}</h1>
+                        <p class="text-gray-600 editable-description" contenteditable="true">${sectionData.description}</p>
+                    </div>
+                    <div class="overflow-x-auto rounded-lg shadow-inner mb-6">
+                        <table class="min-w-full bg-white border border-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">#</th>
+                                    ${sectionData.columns.map((colName) => `
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider group relative">
+                                            <div class="flex items-center justify-between">
+                                                <span contenteditable="true" class="col-name" data-col="${colName}">${colName}</span>
+                                                ${sectionData.columns.length > 1 ? `<button class="text-gray-400 hover:text-red-500 ml-2 remove-col" data-section-id="${sectionData.id}" data-col="${colName}" title="Remove column">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                                    </svg>
+                                                </button>` : ''}
+                                            </div>
+                                        </th>
+                                    `).join('')}
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                        <button class="add-col text-green-600 hover:text-green-800" data-section-id="${sectionData.id}" title="Add column">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                                            </svg>
+                                        </button>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200 project-tbody">
+                                <!-- Rows will be dynamically inserted here -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 items-center justify-center">
+                        <button class="w-full sm:w-auto px-6 py-3 bg-green-600 text-white font-medium rounded-lg shadow-md hover:bg-green-700 transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 add-row" data-section-id="${sectionData.id}">
+                            + Add Row
+                        </button>
+                        <button class="w-full sm:w-auto px-6 py-3 bg-blue-600 text-white font-medium rounded-lg shadow-md hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 print-section" data-section-id="${sectionData.id}">
+                            Print
+                        </button>
+                    </div>
+                `;
+                
+                const tbody = section.querySelector('.project-tbody');
+                sectionData.rows.forEach((rowData, rowIndex) => {
+                    const tr = document.createElement('tr');
+                    tr.setAttribute('data-row-id', rowData.id);
+                    let cellsHtml = '';
+                    sectionData.columns.forEach((colName) => {
+                        cellsHtml += `<td class="px-4 py-3 text-sm text-gray-700 editable-cell" contenteditable="true" data-col="${colName}">${rowData[colName] || ''}</td>`;
+                    });
+                    tr.innerHTML = `
+                        <td class="px-4 py-3 text-sm text-gray-700">${rowIndex + 1}</td>
+                        ${cellsHtml}
+                        <td class="px-4 py-3 text-sm text-gray-700">
+                            <button class="remove-row text-red-500 hover:text-red-700 font-bold" data-section-id="${sectionData.id}" data-row-id="${rowData.id}" title="Remove row">&times;</button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+
+                return section;
+            }
+
+            // Main function to load and render the entire app
+            function renderApp() {
+                appContainer.innerHTML = '';
+                
+                appData.forEach((sectionData, index) => {
+                    const sectionElement = renderSection(sectionData, index);
+                    appContainer.appendChild(sectionElement);
+                });
+            }
+
+            // Attach all event listeners to the main container using event delegation
+            appContainer.addEventListener('input', (e) => {
+                const target = e.target;
+                const sectionElement = target.closest('.bg-white');
+                if (!sectionElement) return;
+
+                const sectionId = sectionElement.dataset.id;
+                const sectionData = appData.find(s => s.id === sectionId);
+                if (!sectionData) return;
+                
+                if (target.classList.contains('editable-title')) {
+                    sectionData.title = target.textContent.trim();
+                } else if (target.classList.contains('editable-description')) {
+                    sectionData.description = target.textContent.trim();
+                } else if (target.classList.contains('col-name')) {
+                    const newName = target.textContent.trim();
+                    const oldName = target.dataset.col;
+                    const colIndex = sectionData.columns.indexOf(oldName);
+                    if (colIndex !== -1) {
+                        sectionData.columns[colIndex] = newName;
+                        sectionData.rows.forEach(row => {
+                            row[newName] = row[oldName];
+                            delete row[oldName];
+                        });
+                    }
+                } else if (target.classList.contains('editable-cell')) {
+                    const rowElement = target.closest('tr');
+                    const rowId = rowElement.dataset.rowId;
+                    const rowData = sectionData.rows.find(r => r.id === rowId);
+                    if (rowData) {
+                        const colName = target.dataset.col;
+                        rowData[colName] = target.textContent.trim();
+                    }
+                }
+                saveData();
+            });
+
+            appContainer.addEventListener('click', (e) => {
+                const target = e.target;
+                
+                const sectionButton = target.closest('[data-section-id]');
+                const sectionId = sectionButton ? sectionButton.dataset.sectionId : null;
+                const sectionData = sectionId ? appData.find(s => s.id === sectionId) : null;
+                const sectionIndex = sectionId ? appData.findIndex(s => s.id === sectionId) : -1;
+                
+                // Add Column button
+                const addColButton = target.closest('.add-col');
+                if (addColButton && sectionData) {
+                    const newColName = 'New Column';
+                    sectionData.columns.push(newColName);
+                    sectionData.rows.forEach(row => row[newColName] = '');
+                    saveData();
+                    renderApp();
+                    return;
+                }
+
+                // Remove Column button
+                const removeColButton = target.closest('.remove-col');
+                if (removeColButton && sectionData) {
+                    const colName = removeColButton.dataset.col;
+                    if (sectionData.columns.length > 1) {
+                        const colIndex = sectionData.columns.indexOf(colName);
+                        if (colIndex !== -1) {
+                            sectionData.columns.splice(colIndex, 1);
+                            sectionData.rows.forEach(row => delete row[colName]);
+                            saveData();
+                            renderApp();
+                        }
+                    }
+                    return;
+                }
+
+                // Add Row button
+                const addButton = target.closest('.add-row');
+                if (addButton && sectionData) {
+                    const newRow = { id: crypto.randomUUID() };
+                    sectionData.columns.forEach(col => newRow[col] = '');
+                    sectionData.rows.push(newRow);
+                    saveData();
+                    renderApp();
+                    return;
+                } 
+                
+                const removeRowButton = target.closest('.remove-row');
+                if (removeRowButton && sectionData) {
+                    const rowId = removeRowButton.dataset.rowId;
+                    const rowIndex = sectionData.rows.findIndex(r => r.id === rowId);
+                    if (rowIndex !== -1) {
+                        sectionData.rows.splice(rowIndex, 1);
+                        saveData();
+                        renderApp();
+                    }
+                    return;
+                } 
+                
+                const deleteSectionButton = target.closest('.delete-section');
+                if (deleteSectionButton && sectionIndex !== -1) {
+                     appData.splice(sectionIndex, 1);
+                     saveData();
+                     renderApp();
+                     return;
+                } 
+                
+                const printButton = target.closest('.print-section');
+                if (printButton) {
+                    window.print();
+                    return;
+                }
+            });
+
+            // Event listener for main "Add Section" button
+            document.getElementById('add-section').addEventListener('click', () => {
+                appData.push({
+                    id: crypto.randomUUID(),
+                    title: "New Section",
+                    description: "Describe this new section here.",
+                    columns: ["Column 1"],
+                    rows: [{ id: crypto.randomUUID(), "Column 1": "" }]
+                });
+                saveData();
+                renderApp();
+            });
+
+            // Event listener for "Save as File" button
+            document.getElementById('save-data').addEventListener('click', () => {
+                const jsonString = JSON.stringify(appData, null, 2);
+                downloadFile(jsonString, 'project_tracker.json', 'application/json');
+            });
+
+            // Event listener for "Load from File" button
+            document.getElementById('load-data').addEventListener('click', () => {
+                document.getElementById('file-input').click();
+            });
+
+            // Handle file selection from the hidden input
+            document.getElementById('file-input').addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const loadedData = JSON.parse(event.target.result);
+                        if (Array.isArray(loadedData) && loadedData.every(s => s.title && s.columns && s.rows)) {
+                             appData = loadedData;
+                             saveData();
+                             renderApp();
+                        } else {
+                            console.error("Loaded file is not in the correct format.");
+                        }
+                    } catch (error) {
+                        console.error("Failed to parse the loaded file:", error);
+                    }
+                };
+                reader.readAsText(file);
+            });
+            
+            // Helper function to create a download link and click it
+            function downloadFile(content, fileName, mimeType) {
+                const blob = new Blob([content], { type: mimeType });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = fileName;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+
+            // Initial load of the application
+            loadData();
+            renderApp();
+        })();
+    </script>
+</body>
+</html>
